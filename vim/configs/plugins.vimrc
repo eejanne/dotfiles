@@ -22,6 +22,7 @@ Plug 'sheerun/vim-polyglot/'
 Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'mileszs/ack.vim'
+Plug 'lukas-reineke/indent-blankline.nvim'
 call plug#end()
 
 
@@ -142,7 +143,7 @@ lua <<EOF
   -- Setup lspconfig.
   local capabilities = require('cmp_nvim_lsp').default_capabilities(vim.lsp.protocol.make_client_capabilities())
   -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.
-  local servers = {'bashls', 'eslint', 'tsserver', 'cssmodules_ls', 'tailwindcss'}
+  local servers = {'bashls', 'eslint', 'tsserver', 'cssmodules_ls', 'tailwindcss', 'pyright'}
   for _, server in pairs(servers) do
     require('lspconfig')[server].setup {
       capabilities = capabilities,
@@ -155,6 +156,9 @@ lua <<EOF
   -- Use å/Å to jump to the next or previous diagnostic errors
   vim.keymap.set('n', 'Å', vim.diagnostic.goto_prev)
   vim.keymap.set('n', 'å', vim.diagnostic.goto_next)
+
+  -- Setup indentation indicator lines
+  require("ibl").setup()
 EOF
 
 " Set color settings to accomodate Oceanic-Next
