@@ -32,6 +32,7 @@ Plug 'github/copilot.vim'
 Plug 'nvim-lua/plenary.nvim'
 Plug 'NickvanDyke/opencode.nvim'
 Plug 'folke/snacks.nvim'
+Plug 'christoomey/vim-tmux-navigator'
 call plug#end()
 
 
@@ -502,7 +503,6 @@ require("diffview").setup({
 EOF
 
 " Diffview keymaps
-nnoremap <leader>dv :DiffviewOpen<CR>
-nnoremap <leader>dc :DiffviewClose<CR>
+nnoremap <leader>dv :lua if next(require('diffview.lib').views) == nil then vim.cmd('DiffviewOpen') else vim.cmd('DiffviewClose') end<CR>
 nnoremap <leader>dh :DiffviewFileHistory<CR>
 nnoremap <leader>df :DiffviewFileHistory %<CR>
