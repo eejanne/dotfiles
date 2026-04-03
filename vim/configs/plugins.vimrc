@@ -239,6 +239,20 @@ require('lualine').setup {
     lualine_x = {},
     lualine_y = {},
     lualine_z = {}
+  },
+  inactive_winbar = {  -- ensure the top bar/winbar is always shown
+    lualine_a = {},
+    lualine_b = {},
+    lualine_c = {
+      {
+        'filename',
+        path = 1,
+        symbols = {modified = '•'}
+      }
+    },
+    lualine_x = {},
+    lualine_y = {},
+    lualine_z = {}
   }
 }
 EOF
