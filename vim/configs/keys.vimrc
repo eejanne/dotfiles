@@ -2,14 +2,12 @@
 nmap <C-s> :w<CR>
 imap <C-s> <Esc>:w<CR>a
 
-" Shortcuts for moving between tabs
-" Ctrl-h to moveleft
-nmap <C-h> gT
-imap <C-h> <Esc>gT
-
-" Ctrl-l to move right
-nmap <C-l> gt
-imap <C-l> <Esc>gt
+" Shortcuts for moving between tabs with Ctrl-Shift-h/l
+" (Ctrl-h/l are now handled by vim-tmux-navigator for split/pane navigation)
+" This is done specifically to allow for navigating vim splits in the same way
+" as tmux panes.
+nmap <C-S-h> gT
+nmap <C-S-l> gt
 
 " Commands for moving and deleting to end/beginning of line optimized for swe-keyboard
 noremap - $
