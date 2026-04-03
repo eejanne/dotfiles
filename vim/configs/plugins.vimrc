@@ -27,6 +27,11 @@ Plug 'junegunn/fzf'
 Plug 'junegunn/fzf.vim'
 Plug 'mileszs/ack.vim'
 Plug 'lukas-reineke/indent-blankline.nvim'
+
+Plug 'github/copilot.vim'
+Plug 'nvim-lua/plenary.nvim'
+Plug 'NickvanDyke/opencode.nvim'
+Plug 'folke/snacks.nvim'
 call plug#end()
 
 
@@ -263,6 +268,109 @@ EOF
 
 " Set maximum line length to 120 for black python fixer
 let g:black_linelength=120
+
+
+"""""""""""""""""""""""""""""""""""""""
+" Copilot code completion
+"""""""""""""""""""""""""""""""""""""""
+
+lua <<EOF
+vim.keymap.set('i', '<C-q>', 'copilot#Accept("\\<CR>")', {
+  expr = true,
+  replace_keycodes = false
+})
+vim.g.copilot_no_tab_map = true
+
+vim.g.copilot_settings = { selectedCompletionModel = 'gpt-41-copilot' }
+
+vim.keymap.set('i', '<C-a>', '<Plug>(copilot-suggest)')
+EOF
+
+"""""""""""""""""""""""""""""""""""""""
+" Opencode.nvim
+"""""""""""""""""""""""""""""""""""""""
+lua <<EOF
+vim.g.opencode_opts = {
+  port = nil, -- Let opencode.nvim auto-discover running instances in the current directory
+  provider = {
+    enabled = "tmux", -- Use tmux provider to run in separate pane
+    tmux = {
+      options = "-h -d", -- Open in horizontal split, detached
+    },
+  },
+  theme = "everforest",
+  events = {
+    enabled = true,
+  },
+}
+
+-- Required for `opts.events.reload`.
+vim.o.autoread = true
+
+-- Custom toggle function that hides/shows tmux pane instead of killing it
+local opencode_pane_id = nil
+
+local function pane_exists(pane_id)
+  if not pane_id or pane_id == "" then return false end
+  local result = vim.fn.system(string.format("tmux list-panes -a -F '#{pane_id}' | grep -q '%s' && echo 'yes' || echo 'no'", pane_id))
+  return vim.trim(result) == "yes"
+end
+
+local function is_pane_in_current_window(pane_id)
+  if not pane_id or pane_id == "" then return false end
+  local result = vim.fn.system("tmux list-panes -F '#{pane_id}'")
+  return result:find(vim.trim(pane_id), 1, true) ~= nil
+end
+
+local function toggle_opencode_visibility()
+  local provider = require("opencode.config").provider
+
+  -- Update our stored pane_id if provider has one
+  if provider and provider.pane_id and provider.pane_id ~= "" then
+    opencode_pane_id = vim.trim(provider.pane_id)
+  end
+
+  -- If we have a pane and it's in current window (visible), hide it
+  if opencode_pane_id and pane_exists(opencode_pane_id) and is_pane_in_current_window(opencode_pane_id) then
+    -- Break the pane into a new window to hide it
+    vim.fn.system(string.format("tmux break-pane -d -s %s", opencode_pane_id))
+  -- If we have a pane but it's not in current window (hidden), show it
+  elseif opencode_pane_id and pane_exists(opencode_pane_id) then
+    -- Re-join the hidden pane
+    vim.fn.system(string.format("tmux join-pane -h -s %s", opencode_pane_id))
+    -- Move cursor to the opencode pane
+    vim.fn.system(string.format("tmux select-pane -t %s", opencode_pane_id))
+  -- No pane exists, start opencode
+  else
+    require("opencode").start()
+    -- Give it a moment to start, then select the pane
+    vim.defer_fn(function()
+      if provider and provider.pane_id and provider.pane_id ~= "" then
+        opencode_pane_id = vim.trim(provider.pane_id)
+        vim.fn.system(string.format("tmux select-pane -t %s", provider.pane_id))
+      end
+    end, 500)
+  end
+end
+
+-- Recommended/example keymaps.
+vim.keymap.set({ "n", "x" }, "<C-a>", function() require("opencode").ask("@this: ", { submit = true }) end, { desc = "Ask opencode…" })
+vim.keymap.set({ "n", "x" }, "<C-x>", function() require("opencode").select() end,                          { desc = "Execute opencode action…" })
+vim.keymap.set({ "n", "t" }, "<C-q>", toggle_opencode_visibility,                                           { desc = "Toggle opencode visibility" })
+
+vim.keymap.set({ "n", "x" }, "go",  function() return require("opencode").operator("@this ") end,        { desc = "Add range to opencode", expr = true })
+vim.keymap.set("n",          "goo", function() return require("opencode").operator("@this ") .. "_" end, { desc = "Add line to opencode", expr = true })
+
+-- Vim-style page up/down navigation for opencode
+vim.keymap.set("n", "<leader>b", function() require("opencode").command("session.page.up") end,   { desc = "Scroll opencode up (full page)" })
+vim.keymap.set("n", "<leader>j", function() require("opencode").command("session.page.down") end, { desc = "Scroll opencode down (full page)" })
+
+-- You may want these if you stick with the opinionated "<C-a>" and "<C-x>" above — otherwise consider "<leader>o…".
+-- vim.keymap.set("n", "+", "<C-a>", { desc = "Increment under cursor", noremap = true })
+-- vim.keymap.set("n", "-", "<C-x>", { desc = "Decrement under cursor", noremap = true })
+
+EOF
+
 
 """"""""""""""""""""""""""""""""""""
 " Ag + Fzf
