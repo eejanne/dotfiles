@@ -13,6 +13,10 @@ Plug 'L3MON4D3/LuaSnip'
 Plug 'saadparwaiz1/cmp_luasnip'
 Plug 'rafamadriz/friendly-snippets'
 
+Plug 'tpope/vim-fugitive'
+Plug 'sindrets/diffview.nvim'
+Plug 'nvim-tree/nvim-web-devicons'
+
 Plug 'neanias/everforest-nvim', { 'branch': 'main' }
 Plug 'tpope/vim-sleuth'
 Plug 'Raimondi/delimitMate'
@@ -299,3 +303,98 @@ let g:fzf_colors =
   \ 'marker':  ['fg', 'Keyword'],
   \ 'spinner': ['fg', 'Label'],
   \ 'header':  ['fg', 'Comment'] }
+
+
+""""""""""""""""""""""""""""""""""""
+" Fugitive
+""""""""""""""""""""""""""""""""""""
+" Force side-by-side diffs no matter the width of the vim window
+set diffopt=vertical
+
+" Override Gdiff to use DiffviewOpen instead
+command! -nargs=? Gdiff :DiffviewOpen <args>
+command! -nargs=? GdiffThis :DiffviewFileHistory %
+
+
+""""""""""""""""""""""""""""""""""""
+" Diffview
+""""""""""""""""""""""""""""""""""""
+lua <<EOF
+local actions = require("diffview.actions")
+
+require("diffview").setup({
+  enhanced_diff_hl = true, -- See ':h diffview-config-enhanced_diff_hl'
+  view = {
+    default = {
+      layout = "diff2_horizontal",
+      winbar_info = true,
+    },
+    merge_tool = {
+      layout = "diff3_horizontal",
+      disable_diagnostics = true,
+      winbar_info = true,
+    },
+    file_history = {
+      layout = "diff2_horizontal",
+      winbar_info = true,
+    },
+  },
+  keymaps = {
+    view = {
+      -- Mappings in diff views
+      { "n", "<tab>",      actions.select_next_entry,              { desc = "Open the diff for the next file" } },
+      { "n", "<s-tab>",    actions.select_prev_entry,              { desc = "Open the diff for the previous file" } },
+      { "n", "[x",         actions.prev_conflict,                  { desc = "Jump to previous conflict" } },
+      { "n", "]x",         actions.next_conflict,                  { desc = "Jump to next conflict" } },
+      { "n", "<leader>co", actions.conflict_choose("ours"),        { desc = "Choose the OURS version of a conflict" } },
+      { "n", "<leader>ct", actions.conflict_choose("theirs"),      { desc = "Choose the THEIRS version of a conflict" } },
+      { "n", "<leader>cb", actions.conflict_choose("base"),        { desc = "Choose the BASE version of a conflict" } },
+      { "n", "<leader>ca", actions.conflict_choose("all"),         { desc = "Choose all the versions of a conflict" } },
+      { "n", "dx",         actions.conflict_choose("none"),        { desc = "Delete the conflict region" } },
+      { "n", "<leader>h",  "<C-w>h",                               { desc = "Move to left panel" } },
+      { "n", "<leader>l",  "<C-w>l",                               { desc = "Move to right panel" } },
+    },
+    file_panel = {
+      -- Mappings in file panel
+      { "n", "j",             actions.next_entry,                     { desc = "Bring cursor to next file entry" } },
+      { "n", "<down>",        actions.next_entry,                     { desc = "Bring cursor to next file entry" } },
+      { "n", "k",             actions.prev_entry,                     { desc = "Bring cursor to previous file entry" } },
+      { "n", "<up>",          actions.prev_entry,                     { desc = "Bring cursor to previous file entry" } },
+      { "n", "<cr>",          actions.select_entry,                   { desc = "Open the diff for the selected entry" } },
+      { "n", "<tab>",         actions.select_next_entry,              { desc = "Open the diff for the next file" } },
+      { "n", "<s-tab>",       actions.select_prev_entry,              { desc = "Open the diff for the previous file" } },
+      { "n", "[x",            actions.prev_conflict,                  { desc = "Jump to previous conflict" } },
+      { "n", "]x",            actions.next_conflict,                  { desc = "Jump to next conflict" } },
+      { "n", "<leader>gf",    actions.goto_file_edit,                 { desc = "Open file in new split" } },
+      { "n", "<leader>h",     "<C-w>h",                               { desc = "Move to left panel" } },
+      { "n", "<leader>l",     "<C-w>l",                               { desc = "Move to right panel" } },
+      { "n", "s",             actions.toggle_stage_entry,             { desc = "Stage/unstage the selected entry" } },
+      { "n", "S",             actions.stage_all,                      { desc = "Stage all entries" } },
+      { "n", "U",             actions.unstage_all,                    { desc = "Unstage all entries" } },
+      { "n", "X",             actions.restore_entry,                  { desc = "Restore entry to the state on the left side" } },
+      { "n", "R",             actions.refresh_files,                  { desc = "Update stats and entries in the file list" } },
+    },
+    file_history_panel = {
+      { "n", "g!",            actions.options,                        { desc = "Open the option panel" } },
+      { "n", "<C-A-d>",       actions.open_in_diffview,               { desc = "Open commit in diffview" } },
+      { "n", "y",             actions.copy_hash,                      { desc = "Copy the commit hash" } },
+      { "n", "L",             actions.open_commit_log,                { desc = "Show commit details" } },
+      { "n", "zR",            actions.open_all_folds,                 { desc = "Expand all folds" } },
+      { "n", "zM",            actions.close_all_folds,                { desc = "Collapse all folds" } },
+      { "n", "j",             actions.next_entry,                     { desc = "Bring cursor to next file entry" } },
+      { "n", "<down>",        actions.next_entry,                     { desc = "Bring cursor to next file entry" } },
+      { "n", "k",             actions.prev_entry,                     { desc = "Bring cursor to previous file entry" } },
+      { "n", "<up>",          actions.prev_entry,                     { desc = "Bring cursor to previous file entry" } },
+      { "n", "<cr>",          actions.select_entry,                   { desc = "Open the diff for the selected entry" } },
+      { "n", "<tab>",         actions.select_next_entry,              { desc = "Open the diff for the next file" } },
+      { "n", "<s-tab>",       actions.select_prev_entry,              { desc = "Open the diff for the previous file" } },
+    },
+  },
+})
+EOF
+
+" Diffview keymaps
+nnoremap <leader>dv :DiffviewOpen<CR>
+nnoremap <leader>dc :DiffviewClose<CR>
+nnoremap <leader>dh :DiffviewFileHistory<CR>
+nnoremap <leader>df :DiffviewFileHistory %<CR>
