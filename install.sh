@@ -55,6 +55,11 @@ if [ -z $(which ag) ]; then
 	brew install the_silver_searcher
 fi
 
+if [ -z $(which opencode) ]; then
+	echo "opencode not found. Installing opencode..."
+	curl -fsSL https://opencode.ai/install | bash
+fi
+
 
 ##########################
 # Create symlinks for dotfiles
@@ -70,6 +75,7 @@ dotfile_paths=( \
 	vim \
 	tmux/tmux.conf \
 	tmux/tmux.reset.conf \
+	opencode/opencode.json \
 )
 # The target locations at which configs are to be installed
 install_paths=( \
@@ -78,6 +84,7 @@ install_paths=( \
 	~/.config/nvim \
 	~/.tmux.conf \
 	~/.tmux.reset.conf \
+	~/.config/opencode/opencode.json \
 )
 
 # Create dotfiles_old in homedir
