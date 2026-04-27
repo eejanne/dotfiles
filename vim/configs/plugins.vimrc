@@ -505,6 +505,8 @@ require("diffview").setup({
 
 -- Track the last modified diff buffer for global undo
 vim.g.diff_last_modified_buf = nil
+-- Track the initial undo state to prevent undoing past it
+vim.g.diff_initial_undo_state = {}
 
 -- Visual mode diffput: pushes changes TO the other buffer (other buffer is modified)
 vim.keymap.set('x', 'dp', function()
@@ -513,6 +515,10 @@ vim.keymap.set('x', 'dp', function()
     if win_id ~= vim.api.nvim_get_current_win() then
       local buf = vim.api.nvim_win_get_buf(win_id)
       if vim.api.nvim_get_option_value('diff', { win = win_id }) then
+        -- Store initial undo state before first modification
+        if not vim.g.diff_initial_undo_state[buf] then
+          vim.g.diff_initial_undo_state[buf] = vim.fn.undotree().seq_cur
+        end
         vim.g.diff_last_modified_buf = buf
         break
       end
@@ -523,7 +529,12 @@ end, { expr = true, desc = 'Diff put selected lines' })
 
 -- Visual mode diffget: pulls changes FROM the other buffer (current buffer is modified)
 vim.keymap.set('x', 'do', function()
-  vim.g.diff_last_modified_buf = vim.api.nvim_get_current_buf()
+  local buf = vim.api.nvim_get_current_buf()
+  -- Store initial undo state before first modification
+  if not vim.g.diff_initial_undo_state[buf] then
+    vim.g.diff_initial_undo_state[buf] = vim.fn.undotree().seq_cur
+  end
+  vim.g.diff_last_modified_buf = buf
   return ':diffget<CR>'
 end, { expr = true, desc = 'Diff get selected lines' })
 
@@ -541,18 +552,60 @@ vim.keymap.set('n', 'u', function()
       if vim.api.nvim_win_get_buf(win_id) == buf then
         local current_win = vim.api.nvim_get_current_win()
         vim.api.nvim_set_current_win(win_id)
-        vim.cmd('undo')
+        
+        -- Check if we can undo without going past the initial state
+        local initial_state = vim.g.diff_initial_undo_state[buf]
+        local current_state = vim.fn.undotree().seq_cur
+        
+        if not initial_state or current_state > initial_state then
+          vim.cmd('undo')
+        end
+        
         vim.api.nvim_set_current_win(current_win)
         return
       end
     end
     -- Buffer exists but not visible in current tab, undo anyway
-    vim.api.nvim_buf_call(buf, function() vim.cmd('undo') end)
+    vim.api.nvim_buf_call(buf, function()
+      local initial_state = vim.g.diff_initial_undo_state[buf]
+      local current_state = vim.fn.undotree().seq_cur
+      
+      if not initial_state or current_state > initial_state then
+        vim.cmd('undo')
+      end
+    end)
   else
     -- Normal undo
     vim.cmd('undo')
   end
 end, { desc = 'Smart undo (diff-aware)' })
+
+-- Smart redo: in diff mode or diffview file panel, redo in last modified buffer; otherwise normal redo
+vim.keymap.set('n', '<C-r>', function()
+  local in_diff = vim.api.nvim_get_option_value('diff', { win = 0 })
+  local filetype = vim.api.nvim_get_option_value('filetype', { buf = 0 })
+  local in_diffview_panel = filetype == 'DiffviewFiles' or filetype == 'DiffviewFileHistory'
+  local buf = vim.g.diff_last_modified_buf
+  
+  if (in_diff or in_diffview_panel) and buf and vim.api.nvim_buf_is_valid(buf) then
+    -- Find window containing the buffer and redo there
+    local win_ids = vim.api.nvim_tabpage_list_wins(0)
+    for _, win_id in ipairs(win_ids) do
+      if vim.api.nvim_win_get_buf(win_id) == buf then
+        local current_win = vim.api.nvim_get_current_win()
+        vim.api.nvim_set_current_win(win_id)
+        vim.cmd('redo')
+        vim.api.nvim_set_current_win(current_win)
+        return
+      end
+    end
+    -- Buffer exists but not visible in current tab, redo anyway
+    vim.api.nvim_buf_call(buf, function() vim.cmd('redo') end)
+  else
+    -- Normal redo
+    vim.cmd('redo')
+  end
+end, { desc = 'Smart redo (diff-aware)' })
 EOF
 
 " Diffview keymaps

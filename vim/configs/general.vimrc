@@ -7,7 +7,6 @@ set foldlevelstart=10
 " Set maximum number of nested folds
 set foldnestmax=5
 
-set pastetoggle=<F2>
 set showmode
 
 " Show line numbers
