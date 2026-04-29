@@ -70,7 +70,7 @@ backup_dir=~/dotfiles_backup
 
 # Relative paths for the config files to be installed
 dotfile_paths=( \
-	alacritty/alacritty.yml \
+	alacritty/alacritty.toml \
 	zsh/zshrc \
 	vim \
 	tmux/tmux.conf \
@@ -79,7 +79,7 @@ dotfile_paths=( \
 )
 # The target locations at which configs are to be installed
 install_paths=( \
-	~/.config/alacritty/alacritty.yml \
+	~/.config/alacritty/alacritty.toml \
 	~/.zshrc \
 	~/.config/nvim \
 	~/.tmux.conf \

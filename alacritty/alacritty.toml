@@ -1,0 +1,78 @@
+[env]
+TERM = "xterm-256color"
+
+[mouse]
+hide_when_typing = true
+
+[window]
+decorations = "Full"
+
+[font]
+size = 12
+
+[font.normal]
+family = "Menlo"
+style = "Regular"
+
+[font.bold]
+family = "Menlo"
+
+[font.italic]
+family = "Menlo"
+
+[font.offset]
+x = 0
+y = 3
+
+[font.glyph_offset]
+x = 0
+y = 3
+
+[colors]
+draw_bold_text_with_bright_colors = true
+
+[colors.primary]
+background = "#fdf6e3"
+foreground = "#5c6a72"
+
+[colors.cursor]
+text = "#ffffff"
+cursor = "#374145"
+
+[colors.normal]
+black   = "#5c6a72"
+red     = "#f85552"
+green   = "#8da101"
+yellow  = "#FAC863"
+blue    = "#3a94c5"
+magenta = "#df69ba"
+cyan    = "#35a77c"
+white   = "#e0dcc7"
+
+[colors.bright]
+black   = "#343d46"
+red     = "#e66868"
+green   = "#93b259"
+yellow  = "#dfa000"
+blue    = "#3a94c5"
+magenta = "#c594c5"
+cyan    = "#5fb3b3"
+white   = "#d8dee9"
+
+[keyboard]
+bindings = [
+  # Pane resizing in tmux (sends C-g + H/J/K/L)
+  { key = "H", mods = "Command", chars = "\u0007H" },
+  { key = "J", mods = "Command", chars = "\u0007J" },
+  { key = "K", mods = "Command", chars = "\u0007K" },
+  { key = "L", mods = "Command", chars = "\u0007L" },
+  # Standard macOS bindings
+  { key = "V",      mods = "Command",       action = "Paste"           },
+  { key = "C",      mods = "Command",       action = "Copy"            },
+  { key = "Q",      mods = "Command",       action = "Quit"            },
+  { key = "N",      mods = "Command",       action = "SpawnNewInstance" },
+  { key = "Return", mods = "Command",       action = "ToggleFullscreen" },
+  { key = "Equals", mods = "Command",       action = "IncreaseFontSize" },
+  { key = "Minus",  mods = "Command",       action = "DecreaseFontSize" },
+  { key = "Minus",  mods = "Command|Shift", action = "ResetFontSize"   },
+]
