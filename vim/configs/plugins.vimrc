@@ -313,13 +313,16 @@ local opencode_pane_id = nil
 
 local function pane_exists(pane_id)
   if not pane_id or pane_id == "" then return false end
-  local result = vim.fn.system(string.format("tmux list-panes -a -F '#{pane_id}' | grep -q '%s' && echo 'yes' || echo 'no'", pane_id))
-  return vim.trim(result) == "yes"
+  local result = vim.fn.system({"tmux", "list-panes", "-a", "-F", "#{pane_id}"})
+  return result:find(vim.trim(pane_id), 1, true) ~= nil
 end
+
+-- Get the pane ID of the nvim process itself from the environment
+local nvim_pane_id = vim.trim(os.getenv("TMUX_PANE") or "")
 
 local function is_pane_in_current_window(pane_id)
   if not pane_id or pane_id == "" then return false end
-  local result = vim.fn.system("tmux list-panes -F '#{pane_id}'")
+  local result = vim.fn.system({"tmux", "list-panes", "-F", "#{pane_id}", "-t", nvim_pane_id})
   return result:find(vim.trim(pane_id), 1, true) ~= nil
 end
 
@@ -337,8 +340,14 @@ local function toggle_opencode_visibility()
     vim.fn.system(string.format("tmux break-pane -d -s %s", opencode_pane_id))
   -- If we have a pane but it's not in current window (hidden), show it
   elseif opencode_pane_id and pane_exists(opencode_pane_id) then
-    -- Re-join the hidden pane
-    vim.fn.system(string.format("tmux join-pane -h -s %s", opencode_pane_id))
+    -- Re-join the hidden pane, restoring saved width if available
+    local saved = vim.trim(vim.fn.system("tmux show-option -gv @opencode_pane_width 2>/dev/null"))
+    local width = tonumber(saved)
+    if width then
+      vim.fn.system(string.format("tmux join-pane -h -l %d -s %s -t %s", width, opencode_pane_id, nvim_pane_id))
+    else
+      vim.fn.system(string.format("tmux join-pane -h -s %s -t %s", opencode_pane_id, nvim_pane_id))
+    end
     -- Move cursor to the opencode pane
     vim.fn.system(string.format("tmux select-pane -t %s", opencode_pane_id))
   -- No pane exists, start opencode
