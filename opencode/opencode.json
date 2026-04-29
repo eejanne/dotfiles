@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "theme": "everforest",
   "permission": {
     "bash": {
       "git add *": "deny",
@@ -8,9 +7,7 @@
       "git push *": "deny"
     }
   },
-  "keybinds": {
-    "messages_page_up": "ctrl+b",
-    "messages_page_down": "ctrl+f",
-    "app_exit": "none"
-  }
+  "plugin": [
+    "@mohak34/opencode-notifier@latest"
+  ]
 }
