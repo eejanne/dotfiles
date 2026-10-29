@@ -57,7 +57,7 @@ fi
 
 if [ -z $(which opencode) ]; then
 	echo "opencode not found. Installing opencode..."
-	curl -fsSL https://opencode.ai/install | bash
+	curl -fsSL https://opencode.ai/v2/install | bash
 fi
 
 
