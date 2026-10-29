@@ -147,8 +147,8 @@ lua <<EOF
   end
   vim.lsp.enable(servers)
   -- Use å/Å to jump to the next or previous diagnostic errors
-  vim.keymap.set('n', 'Å', vim.diagnostic.goto_prev)
-  vim.keymap.set('n', 'å', vim.diagnostic.goto_next)
+  vim.keymap.set('n', 'Å', function() vim.diagnostic.jump({ count = -1, float = true }) end)
+  vim.keymap.set('n', 'å', function() vim.diagnostic.jump({ count = 1, float = true }) end)
 
   -- Setup indentation indicator lines
   require("ibl").setup()
