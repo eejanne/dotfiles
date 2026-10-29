@@ -274,20 +274,6 @@ EOF
 " Opencode.nvim
 """""""""""""""""""""""""""""""""""""""
 lua <<EOF
-vim.g.opencode_opts = {
-  port = nil, -- Let opencode.nvim auto-discover running instances in the current directory
-  provider = {
-    enabled = "tmux", -- Use tmux provider to run in separate pane
-    tmux = {
-      options = "-h -d", -- Open in horizontal split, detached
-    },
-  },
-  theme = "everforest",
-  events = {
-    enabled = true,
-  },
-}
-
 -- Required for `opts.events.reload`.
 vim.o.autoread = true
 
@@ -309,14 +295,28 @@ local function is_pane_in_current_window(pane_id)
   return result:find(vim.trim(pane_id), 1, true) ~= nil
 end
 
-local function toggle_opencode_visibility()
-  local provider = require("opencode.config").provider
-
-  -- Update our stored pane_id if provider has one
-  if provider and provider.pane_id and provider.pane_id ~= "" then
-    opencode_pane_id = vim.trim(provider.pane_id)
+-- Start opencode in a detached tmux pane beside nvim and remember its id.
+-- opencode.nvim calls this too when it can't find a running opencode server.
+local function start_opencode_pane()
+  local output = vim.fn.system({"tmux", "split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "opencode"})
+  if vim.v.shell_error ~= 0 then
+    vim.notify("Failed to start opencode in tmux: " .. vim.trim(output), vim.log.levels.ERROR)
+    return
   end
+  opencode_pane_id = vim.trim(output)
+  vim.fn.system(string.format("tmux select-pane -t %s", opencode_pane_id))
+end
 
+vim.g.opencode_opts = {
+  server = {
+    start = start_opencode_pane,
+  },
+  events = {
+    enabled = true,
+  },
+}
+
+local function toggle_opencode_visibility()
   -- If we have a pane and it's in current window (visible), hide it
   if opencode_pane_id and pane_exists(opencode_pane_id) and is_pane_in_current_window(opencode_pane_id) then
     -- Break the pane into a new window to hide it
@@ -335,14 +335,7 @@ local function toggle_opencode_visibility()
     vim.fn.system(string.format("tmux select-pane -t %s", opencode_pane_id))
   -- No pane exists, start opencode
   else
-    require("opencode").start()
-    -- Give it a moment to start, then select the pane
-    vim.defer_fn(function()
-      if provider and provider.pane_id and provider.pane_id ~= "" then
-        opencode_pane_id = vim.trim(provider.pane_id)
-        vim.fn.system(string.format("tmux select-pane -t %s", provider.pane_id))
-      end
-    end, 500)
+    start_opencode_pane()
   end
 end
 
