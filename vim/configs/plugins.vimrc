@@ -143,10 +143,9 @@ lua <<EOF
   -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.
   local servers = {'bashls', 'eslint', 'ts_ls', 'cssmodules_ls', 'tailwindcss', 'pyright'}
   for _, server in pairs(servers) do
-    require('lspconfig')[server].setup {
-      capabilities = capabilities,
-    }
+    vim.lsp.config(server, { capabilities = capabilities })
   end
+  vim.lsp.enable(servers)
   -- Use å/Å to jump to the next or previous diagnostic errors
   vim.keymap.set('n', 'Å', vim.diagnostic.goto_prev)
   vim.keymap.set('n', 'å', vim.diagnostic.goto_next)
