@@ -7,7 +7,6 @@ Plug 'hrsh7th/cmp-buffer'
 Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'hrsh7th/nvim-cmp'
-Plug 'williamboman/nvim-lsp-installer'
 
 Plug 'L3MON4D3/LuaSnip'
 Plug 'saadparwaiz1/cmp_luasnip'
@@ -54,8 +53,6 @@ lua <<EOF
     return col == 0 or vim.fn.getline("."):sub(col, col):match "%s"
   end
   ----------------
-
-  require("nvim-lsp-installer").setup {}
 
   -- Load snippets
   require("luasnip.loaders.from_vscode").lazy_load()
@@ -106,15 +103,6 @@ lua <<EOF
         end
 	  end, {"i", "s"}),
     }),
-    snippet = {
-      expand = function(args)
-        local luasnip = prequire("luasnip")
-        if not luasnip then
-          return
-        end
-        luasnip.lsp_expand(args.body)
-      end,
-    },
     sources = cmp.config.sources({
       { name = 'nvim_lsp' },
       { name = 'luasnip' }, -- For luasnip users.
@@ -153,15 +141,11 @@ lua <<EOF
   -- Setup lspconfig.
   local capabilities = require('cmp_nvim_lsp').default_capabilities(vim.lsp.protocol.make_client_capabilities())
   -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.
-  local servers = {'bashls', 'eslint', 'tsserver', 'cssmodules_ls', 'tailwindcss', 'pyright'}
+  local servers = {'bashls', 'eslint', 'ts_ls', 'cssmodules_ls', 'tailwindcss', 'pyright'}
   for _, server in pairs(servers) do
     require('lspconfig')[server].setup {
       capabilities = capabilities,
-      root_dir = require('lspconfig.util').root_pattern('.git')(fname)
     }
-    -- require('lspconfig')[server].setup{
-    --  root_dir = util.root_pattern('.git')(fname)
-    -- }
   end
   -- Use å/Å to jump to the next or previous diagnostic errors
   vim.keymap.set('n', 'Å', vim.diagnostic.goto_prev)
@@ -202,9 +186,9 @@ lua <<EOF
 require('lint').linters_by_ft = {
   markdown = {'vale',},
   python = {'flake8',},
-  javascript = { "eslint", "tsserver"},
-  typescriptreact = { "eslint", "tsserver" },
-  typescript = { "eslint", "tsserver" },
+  javascript = { "eslint" },
+  typescriptreact = { "eslint" },
+  typescript = { "eslint" },
 }
 EOF
 
