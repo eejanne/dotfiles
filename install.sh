@@ -16,7 +16,7 @@ if [ -z $(which brew) ]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
-if [ ! -f "Applications/Alacritty.app" ]; then
+if [ ! -d "/Applications/Alacritty.app" ]; then
 	echo "alacritty not found. Installing alacritty..."
 	brew install --cask alacritty
 fi
