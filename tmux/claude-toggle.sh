@@ -1,60 +1,60 @@
 #!/bin/bash
 # Toggle Claude Code pane on/off to the right of neovim.
-# Triggered via C-q; $TMUX_PANE is set by tmux to the neovim pane.
 
-# TMUX_PANE is set by tmux (key binding) and inherited by neovim subprocesses.
-NVIM_PANE="${TMUX_PANE}"
-WINDOW=$(tmux display-message -p -t "$NVIM_PANE" "#{window_id}")
+TRIGGERING_PANE=$(tmux display-message -p "#{pane_id}")
+WINDOW=$(tmux display-message -p "#{window_id}")
 
-# Find a Claude pane visible in this window.
-CLAUDE_PANE=$(tmux list-panes -t "$WINDOW" -F "#{pane_id} #{pane_current_command}" \
-  | awk '$2 == "claude" {print $1; exit}')
+# Use the stored pane ID — never search by command name, which would match
+# any other claude session open in the same window.
+CLAUDE_PANE=$(tmux show-option -gv @claude_pane_id 2>/dev/null)
+
+# Verify the stored pane actually lives in this window right now.
+if [ -n "$CLAUDE_PANE" ]; then
+  tmux list-panes -t "$WINDOW" -F "#{pane_id}" | grep -q "^${CLAUDE_PANE}$" || CLAUDE_PANE=""
+fi
 
 if [ -n "$CLAUDE_PANE" ]; then
   # === HIDE ===
-  tmux set-hook -gu after-select-pane
-  tmux set -g focus-events off
+  NVIM_PANE=$(tmux show-option -gv @claude_nvim_pane 2>/dev/null)
+  PRE_WIDTH=$(tmux show-option -gv @pre_claude_nvim_width 2>/dev/null)
 
-  # Move cursor to neovim before removing Claude to avoid a visible jump.
-  tmux select-pane -t "$NVIM_PANE"
+  [ -n "$NVIM_PANE" ] && tmux select-pane -t "$NVIM_PANE"
 
   # Park Claude in a named background window so it can be rejoined later.
   tmux break-pane -d -s "$CLAUDE_PANE" -n claude
 
-  # Restore neovim to its pre-Claude width.
-  SAVED_WIDTH=$(tmux show-option -gv @pre_claude_nvim_width 2>/dev/null)
-  if [ -n "$SAVED_WIDTH" ]; then
-    tmux resize-pane -t "$NVIM_PANE" -x "$SAVED_WIDTH"
-    tmux set-option -gu @pre_claude_nvim_width
+  # After break-pane, tmux naturally gives Claude's space to the adjacent pane.
+  # Only resize if neovim is still narrower than its pre-Claude width, which
+  # means a right-side pane took the space instead. Use -R (rightward only) so
+  # left-side panes are never touched.
+  if [ -n "$NVIM_PANE" ] && [ -n "$PRE_WIDTH" ]; then
+    NEW_WIDTH=$(tmux display-message -p -t "$NVIM_PANE" "#{pane_width}")
+    GROW=$((PRE_WIDTH - NEW_WIDTH))
+    [ "$GROW" -gt 0 ] && tmux resize-pane -t "$NVIM_PANE" -R "$GROW"
   fi
 
-  tmux set -g focus-events on
-  tmux set-hook -g after-select-pane \
-    'run-shell -b "~/dotfiles/tmux/claude-cursor.sh #{pane_id}"'
+  tmux set-option -gu @claude_pane_id
+  tmux set-option -gu @claude_nvim_pane
+  tmux set-option -gu @pre_claude_nvim_width
 
 else
   # === SHOW ===
-  tmux set-hook -gu after-select-pane
-  tmux set -g focus-events off
+  NVIM_PANE="$TRIGGERING_PANE"
 
-  NVIM_WIDTH=$(tmux display-message -p -t "$NVIM_PANE" "#{pane_width}")
-  tmux set-option -g @pre_claude_nvim_width "$NVIM_WIDTH"
+  tmux set-option -g @claude_nvim_pane "$NVIM_PANE"
+  tmux set-option -g @pre_claude_nvim_width \
+    "$(tmux display-message -p -t "$NVIM_PANE" "#{pane_width}")"
 
-  # Rejoin a parked Claude window if one exists, otherwise open fresh.
-  CLAUDE_WINDOW=$(tmux list-windows -a -F "#{window_id} #{window_name}" \
+  CLAUDE_WINDOW=$(tmux list-windows -F "#{window_id} #{window_name}" \
     | awk '$2 == "claude" {print $1; exit}')
 
   if [ -n "$CLAUDE_WINDOW" ]; then
     SAVED_PANE=$(tmux list-panes -t "$CLAUDE_WINDOW" -F "#{pane_id}" | head -1)
-    tmux join-pane -h -s "$SAVED_PANE" -t "$NVIM_PANE"
+    tmux join-pane -h -l 80 -s "$SAVED_PANE" -t "$NVIM_PANE"
+    CLAUDE_PANE="$SAVED_PANE"
   else
-    tmux split-window -h -t "$NVIM_PANE" "claude"
+    CLAUDE_PANE=$(tmux split-window -h -l 80 -P -F "#{pane_id}" -t "$NVIM_PANE" "claude")
   fi
 
-  # Keep focus in neovim; leave Claude on the right.
-  tmux select-pane -t "$NVIM_PANE"
-
-  tmux set -g focus-events on
-  tmux set-hook -g after-select-pane \
-    'run-shell -b "~/dotfiles/tmux/claude-cursor.sh #{pane_id}"'
+  tmux set-option -g @claude_pane_id "$CLAUDE_PANE"
 fi
