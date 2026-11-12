@@ -196,7 +196,10 @@ lua <<EOF
 require('lualine').setup {
   options = {
     icons_enabled = true,
-    theme = 'everforest'
+    theme = 'everforest',
+    disabled_filetypes = {
+      winbar = { 'fzf' },
+    },
   },
   sections = {
     lualine_a = {'mode'},
