@@ -1,10 +1,37 @@
 #!/usr/bin/env bash
 q="$1"
 if [ -z "$q" ]; then
-  find . -not -path '*/.git/*' -not -name '.git' | sed 's|^\./||' | LC_ALL=C sort | awk '{
-    p=$0; n=split(p,a,"/");
-    printf "%s\t%*s%s\n", p, (n-1)*2, "", a[n]
-  }'
+  find . -mindepth 1 -not -path '*/.git/*' -not -name '.git' | \
+    sed 's|^\./||' | LC_ALL=C sort | awk '
+BEGIN { n = 0 }
+{ paths[n++] = $0 }
+END {
+  for (i = 0; i < n; i++) {
+    path = paths[i]
+    ndepth = split(path, parts, "/")
+    display = ""
+    for (d = 1; d <= ndepth; d++) {
+      curr = ""
+      for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
+      par = ""
+      for (k = 1; k < d; k++) par = par (k > 1 ? "/" : "") parts[k]
+      if (d > 1) par = par "/"
+      j = i
+      curr_slash = curr "/"
+      while (j < n && (paths[j] == curr || substr(paths[j], 1, length(curr_slash)) == curr_slash)) j++
+      if (par == "")
+        is_last = (j >= n)
+      else
+        is_last = (j >= n || substr(paths[j], 1, length(par)) != par)
+      if (d < ndepth)
+        display = display (is_last ? "    " : "│   ")
+      else
+        display = display (is_last ? "└── " : "├── ") parts[d]
+    }
+    printf "%s\t%s\n", path, display
+  }
+}
+'
 else
   ag --hidden --ignore ".git" -g "" | awk '{printf "%s\t%s\n", $0, $0}'
 fi
