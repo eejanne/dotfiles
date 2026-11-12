@@ -389,16 +389,10 @@ nnoremap <Leader>c :Ag<CR>
 nnoremap <Leader>r :Buffers<CR>
 
 lua <<EOF
-local function ftree_open(line)
-  local path = vim.split(line, "\t")[1]
-  vim.cmd("edit " .. vim.fn.fnameescape(path))
-end
-
 local function tree_files()
   local script = vim.fn.expand("~") .. "/dotfiles/vim/ftree"
 
-  -- Collapsed-dirs file persists for the life of this vim session so the
-  -- user's expanded/collapsed state survives re-opening the picker.
+  -- Collapsed-dirs file persists for the life of this vim session.
   local collapsed = "/tmp/ftree_collapsed_" .. vim.fn.getpid()
   if vim.fn.filereadable(collapsed) == 0 then
     vim.fn.writefile({}, collapsed)
@@ -406,25 +400,59 @@ local function tree_files()
   vim.fn.setenv("FTREE_COLLAPSED", collapsed)
   vim.fn.setenv("FTREE_SCRIPT", script)
 
-  -- left/right collapse and expand the selected directory, then reload the tree.
-  -- execute-silent runs the toggle synchronously; reload re-renders the source.
-  -- The --collapse handler ignores non-directories, so pressing left on a file is a no-op.
+  -- FIFO for fzf→neovim IPC: fzf writes the selected path, neovim reads and opens it.
+  -- Avoids spawning a new nvim process (which writes to the terminal and causes flashing).
+  local fifo = "/tmp/ftree_open_" .. vim.fn.getpid()
+  if vim.fn.getftype(fifo) ~= "fifo" then
+    vim.fn.delete(fifo)
+    vim.fn.system("mkfifo " .. vim.fn.shellescape(fifo))
+  end
+
+  local prev_win = vim.api.nvim_get_current_win()
+  -- fzf_win is set after fzf#run below; the closure sees it via upvalue reference.
+  local fzf_win
+
+  -- One reader job per TreeFiles call; kill any previous one so prev_win is fresh.
+  if vim.g.ftree_job_id and vim.fn.jobwait({vim.g.ftree_job_id}, 0)[1] == -1 then
+    vim.fn.jobstop(vim.g.ftree_job_id)
+  end
+  vim.g.ftree_job_id = vim.fn.jobstart(
+    {"sh", "-c", "while true; do read -r p < " .. vim.fn.shellescape(fifo) .. "; [ -n \"$p\" ] && printf '%s\\n' \"$p\"; done"},
+    {
+      stdout_buffered = false,
+      on_stdout = function(_, data)
+        for _, path in ipairs(data) do
+          if path ~= "" then
+            vim.schedule(function()
+              if vim.api.nvim_win_is_valid(prev_win) then
+                vim.api.nvim_set_current_win(prev_win)
+              end
+              -- silent! suppresses the "press enter" LSP startup error prompt
+              vim.cmd("silent! edit " .. vim.fn.fnameescape(path))
+              -- Return focus to fzf so the picker stays interactive
+              if fzf_win and vim.api.nvim_win_is_valid(fzf_win) then
+                vim.api.nvim_set_current_win(fzf_win)
+              end
+            end)
+          end
+        end
+      end,
+    }
+  )
+
   local left_bind = string.format(
-    "left:execute-silent(%s --collapse {1})+reload(%s)",
-    script, script
-  )
+    "left:execute-silent(%s --collapse {1})+reload(%s)", script, script)
   local right_bind = string.format(
-    "right:execute-silent(%s --expand {1})+reload(%s)",
-    script, script
-  )
+    "right:execute-silent(%s --expand {1})+reload(%s)", script, script)
   local change_bind = string.format(
     'change:transform:[[ -n "{q}" ]] && echo "enable-search+reload(%s {q})" || echo "disable-search+reload(%s)"',
-    script, script
-  )
+    script, script)
+  -- Write path to FIFO; the reader job above opens it in the original window.
+  local enter_bind = string.format(
+    "enter:execute-silent(printf '%%s\\n' '{1}' > %s)+clear-query", fifo)
 
   vim.fn["fzf#run"](vim.fn["fzf#wrap"]({
     source = script,
-    sink = ftree_open,
     options = {
       "--disabled",
       "--delimiter", "\t",
@@ -433,8 +461,11 @@ local function tree_files()
       "--bind", change_bind,
       "--bind", left_bind,
       "--bind", right_bind,
+      "--bind", enter_bind,
     }
   }))
+  -- fzf#run moves focus to the terminal window; capture it for the callback above.
+  fzf_win = vim.api.nvim_get_current_win()
 end
 
 vim.api.nvim_create_user_command("TreeFiles", tree_files, {})
