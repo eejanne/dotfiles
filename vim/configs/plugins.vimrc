@@ -382,11 +382,36 @@ let $FZF_DEFAULT_COMMAND = 'ag --hidden --ignore ".git" -g ""'
 " Freeform text search
 nnoremap <Leader>c :Ag<CR>
 
-" Search file names
-nnoremap <Leader>f :Files<CR>
+" Search file names (see TreeFiles lua command above)
+" nnoremap <Leader>f :Files<CR>
 
 " Search among open buffers
 nnoremap <Leader>r :Buffers<CR>
+
+lua <<EOF
+local function ftree_open(line)
+  local path = vim.split(line, "\t")[1]
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+end
+
+local function tree_files()
+  local script = vim.fn.expand("~") .. "/dotfiles/vim/ftree"
+  vim.fn["fzf#run"](vim.fn["fzf#wrap"]({
+    source = script,
+    sink = ftree_open,
+    options = {
+      "--disabled",
+      "--delimiter", "\t",
+      "--with-nth", "2",
+      "--prompt", "Tree> ",
+      "--bind", "change:transform:[[ -n \"{q}\" ]] && echo \"enable-search+reload(" .. script .. " {q})\" || echo \"disable-search+reload(" .. script .. ")\""
+    }
+  }))
+end
+
+vim.api.nvim_create_user_command("TreeFiles", tree_files, {})
+vim.keymap.set("n", "<Leader>f", tree_files, { desc = "Tree file browser / fuzzy search" })
+EOF
 
 " Place the fuzzyfinder window at the bottom of the vim screen
 let g:fzf_layout = { 'down':  '40%'}

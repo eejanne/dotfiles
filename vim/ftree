@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+q="$1"
+if [ -z "$q" ]; then
+  find . -not -path '*/.git/*' -not -name '.git' | sed 's|^\./||' | LC_ALL=C sort | awk '{
+    p=$0; n=split(p,a,"/");
+    printf "%s\t%*s%s\n", p, (n-1)*2, "", a[n]
+  }'
+else
+  ag --hidden --ignore ".git" -g "" | awk '{printf "%s\t%s\n", $0, $0}'
+fi
