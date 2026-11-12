@@ -9,8 +9,7 @@ case "$1" in
     exit 0
     ;;
   --expand)
-    grep -vxF "$2" "$COLLAPSED" > "${COLLAPSED}.tmp" 2>/dev/null \
-      && mv "${COLLAPSED}.tmp" "$COLLAPSED"
+    grep -vxF "$2" "$COLLAPSED" > "${COLLAPSED}.tmp" 2>/dev/null; mv "${COLLAPSED}.tmp" "$COLLAPSED"
     exit 0
     ;;
 esac
