@@ -1,37 +1,45 @@
 #!/usr/bin/env bash
 q="$1"
 if [ -z "$q" ]; then
-  find . -mindepth 1 -not -path '*/.git/*' -not -name '.git' | \
-    sed 's|^\./||' | LC_ALL=C sort | awk '
+  # ag respects .gitignore so node_modules etc. are skipped automatically.
+  # Expand each file path into all its ancestor directory paths so the tree
+  # has explicit nodes for every directory level.
+  ag --hidden --ignore ".git" -g "" 2>/dev/null | awk '{
+    n = split($0, parts, "/")
+    for (d = 1; d <= n; d++) {
+      curr = ""
+      for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
+      print curr
+    }
+  }' | LC_ALL=C sort -u | awk '
 BEGIN { n = 0 }
-{ paths[n++] = $0 }
+{ paths[n] = $0; path_idx[$0] = n; n++ }
 END {
+  # Precompute nnd[i]: index of first path that is not paths[i] or a descendant.
+  # Right-to-left pass; each nnd[j] jump skips an entire subtree so total work is O(n).
+  nnd[n-1] = n
+  for (i = n-2; i >= 0; i--) {
+    j = i + 1; prefix = paths[i] "/"; plen = length(prefix)
+    while (j < n && substr(paths[j], 1, plen) == prefix) j = nnd[j]
+    nnd[i] = j
+  }
   for (i = 0; i < n; i++) {
-    path = paths[i]
-    ndepth = split(path, parts, "/")
-    display = ""
+    path = paths[i]; ndepth = split(path, parts, "/"); display = ""
     for (d = 1; d <= ndepth; d++) {
       curr = ""
       for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
       par = ""
       for (k = 1; k < d; k++) par = par (k > 1 ? "/" : "") parts[k]
       if (d > 1) par = par "/"
-      j = i
-      curr_slash = curr "/"
-      while (j < n && (paths[j] == curr || substr(paths[j], 1, length(curr_slash)) == curr_slash)) j++
-      if (par == "")
-        is_last = (j >= n)
-      else
-        is_last = (j >= n || substr(paths[j], 1, length(par)) != par)
-      if (d < ndepth)
-        display = display (is_last ? "    " : "│   ")
-      else
-        display = display (is_last ? "└── " : "├── ") parts[d]
+      j = nnd[path_idx[curr]]
+      if (par == "") is_last = (j >= n)
+      else is_last = (j >= n || substr(paths[j], 1, length(par)) != par)
+      if (d < ndepth) display = display (is_last ? "    " : "│   ")
+      else display = display (is_last ? "└── " : "├── ") parts[d]
     }
     printf "%s\t%s\n", path, display
   }
-}
-'
+}'
 else
   ag --hidden --ignore ".git" -g "" | awk '{printf "%s\t%s\n", $0, $0}'
 fi
