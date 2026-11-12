@@ -1,22 +1,51 @@
 #!/usr/bin/env bash
+
+COLLAPSED="${FTREE_COLLAPSED:-/dev/null}"
+
+# Subcommands used by fzf left/right bindings to toggle directory collapse state
+case "$1" in
+  --collapse)
+    [ -d "$2" ] && { grep -qxF "$2" "$COLLAPSED" || printf '%s\n' "$2" >> "$COLLAPSED"; }
+    exit 0
+    ;;
+  --expand)
+    grep -vxF "$2" "$COLLAPSED" > "${COLLAPSED}.tmp" 2>/dev/null \
+      && mv "${COLLAPSED}.tmp" "$COLLAPSED"
+    exit 0
+    ;;
+esac
+
 q="$1"
+
 if [ -z "$q" ]; then
-  # ag respects .gitignore so node_modules etc. are skipped automatically.
-  # Expand each file path into all its ancestor directory paths so the tree
-  # has explicit nodes for every directory level.
-  ag --hidden --ignore ".git" -g "" 2>/dev/null | awk '{
-    n = split($0, parts, "/")
-    for (d = 1; d <= n; d++) {
-      curr = ""
-      for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
-      print curr
-    }
-  }' | LC_ALL=C sort -u | awk '
-BEGIN { n = 0 }
+  # Expand each file path into all ancestor directory paths so the tree has
+  # explicit nodes for every level. Skip content inside collapsed directories.
+  ag --hidden --ignore ".git" -g "" 2>/dev/null | awk -v cf="$COLLAPSED" '
+BEGIN {
+  while ((getline line < cf) > 0) collapsed[line] = 1
+  close(cf)
+}
+{
+  np = split($0, parts, "/")
+  max_d = np
+  for (d = 1; d < np; d++) {
+    anc = ""
+    for (k = 1; k <= d; k++) anc = anc (k > 1 ? "/" : "") parts[k]
+    if (anc in collapsed) { max_d = d; break }
+  }
+  for (d = 1; d <= max_d; d++) {
+    curr = ""
+    for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
+    print curr
+  }
+}' | LC_ALL=C sort -u | awk -v cf="$COLLAPSED" '
+BEGIN {
+  while ((getline line < cf) > 0) collapsed[line] = 1
+  close(cf)
+  n = 0
+}
 { paths[n] = $0; path_idx[$0] = n; n++ }
 END {
-  # Precompute nnd[i]: index of first path that is not paths[i] or a descendant.
-  # Right-to-left pass; each nnd[j] jump skips an entire subtree so total work is O(n).
   nnd[n-1] = n
   for (i = n-2; i >= 0; i--) {
     j = i + 1; prefix = paths[i] "/"; plen = length(prefix)
@@ -25,6 +54,8 @@ END {
   }
   for (i = 0; i < n; i++) {
     path = paths[i]; ndepth = split(path, parts, "/"); display = ""
+    plen1 = length(path) + 1
+    is_dir = (path in collapsed) || (i + 1 < n && substr(paths[i+1], 1, plen1) == path "/")
     for (d = 1; d <= ndepth; d++) {
       curr = ""
       for (k = 1; k <= d; k++) curr = curr (k > 1 ? "/" : "") parts[k]
@@ -35,7 +66,11 @@ END {
       if (par == "") is_last = (j >= n)
       else is_last = (j >= n || substr(paths[j], 1, length(par)) != par)
       if (d < ndepth) display = display (is_last ? "    " : "│   ")
-      else display = display (is_last ? "└── " : "├── ") parts[d]
+      else {
+        if (path in collapsed) icon = "▶ "
+        else icon = ""
+        display = display (is_last ? "└── " : "├── ") icon parts[d]
+      }
     }
     printf "%s\t%s\n", path, display
   }

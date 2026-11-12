@@ -396,6 +396,32 @@ end
 
 local function tree_files()
   local script = vim.fn.expand("~") .. "/dotfiles/vim/ftree"
+
+  -- Collapsed-dirs file persists for the life of this vim session so the
+  -- user's expanded/collapsed state survives re-opening the picker.
+  local collapsed = "/tmp/ftree_collapsed_" .. vim.fn.getpid()
+  if vim.fn.filereadable(collapsed) == 0 then
+    vim.fn.writefile({}, collapsed)
+  end
+  vim.fn.setenv("FTREE_COLLAPSED", collapsed)
+  vim.fn.setenv("FTREE_SCRIPT", script)
+
+  -- left/right collapse and expand the selected directory, then reload the tree.
+  -- execute-silent runs the toggle synchronously; reload re-renders the source.
+  -- The --collapse handler ignores non-directories, so pressing left on a file is a no-op.
+  local left_bind = string.format(
+    "left:execute-silent(%s --collapse {1})+reload(%s)",
+    script, script
+  )
+  local right_bind = string.format(
+    "right:execute-silent(%s --expand {1})+reload(%s)",
+    script, script
+  )
+  local change_bind = string.format(
+    'change:transform:[[ -n "{q}" ]] && echo "enable-search+reload(%s {q})" || echo "disable-search+reload(%s)"',
+    script, script
+  )
+
   vim.fn["fzf#run"](vim.fn["fzf#wrap"]({
     source = script,
     sink = ftree_open,
@@ -404,7 +430,9 @@ local function tree_files()
       "--delimiter", "\t",
       "--with-nth", "2",
       "--prompt", "Tree> ",
-      "--bind", "change:transform:[[ -n \"{q}\" ]] && echo \"enable-search+reload(" .. script .. " {q})\" || echo \"disable-search+reload(" .. script .. ")\""
+      "--bind", change_bind,
+      "--bind", left_bind,
+      "--bind", right_bind,
     }
   }))
 end
