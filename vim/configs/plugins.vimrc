@@ -395,27 +395,46 @@ lua <<EOF
 local function tree_files()
   local script = vim.fn.expand("~") .. "/dotfiles/vim/ftree"
 
-  -- Collapsed-dirs file persists for the life of this vim session.
   local collapsed = "/tmp/ftree_collapsed_" .. vim.fn.getpid()
   if vim.fn.filereadable(collapsed) == 0 then
     vim.fn.writefile({}, collapsed)
   end
   vim.fn.setenv("FTREE_COLLAPSED", collapsed)
-  vim.fn.setenv("FTREE_SCRIPT", script)
 
-  -- FIFO for fzf→neovim IPC: fzf writes the selected path, neovim reads and opens it.
-  -- Avoids spawning a new nvim process (which writes to the terminal and causes flashing).
+  -- FIFO lets fzf hand selected paths back to this nvim without spawning a new one.
   local fifo = "/tmp/ftree_open_" .. vim.fn.getpid()
   if vim.fn.getftype(fifo) ~= "fifo" then
     vim.fn.delete(fifo)
     vim.fn.system("mkfifo " .. vim.fn.shellescape(fifo))
   end
 
+  -- State: line 1 = focused path, line 2 = query, line 3 = scroll offset.
+  local state_file = "/tmp/ftree_state_" .. vim.fn.getpid()
+  local saved_path, saved_query, saved_offset = "", "", 0
+  if vim.fn.filereadable(state_file) == 1 then
+    local st = vim.fn.readfile(state_file)
+    saved_path   = st[1] or ""
+    saved_query  = st[2] or ""
+    saved_offset = tonumber(st[3]) or 0
+  end
+
+  local start_pos = 0
+  if saved_path ~= "" and saved_query == "" then
+    local lines = vim.fn.systemlist(script)
+    for idx, line in ipairs(lines) do
+      if line:match("^([^\t]+)") == saved_path then
+        start_pos = idx
+        break
+      end
+    end
+  end
+  if saved_offset >= start_pos then
+    saved_offset = 0
+  end
+
   local prev_win = vim.api.nvim_get_current_win()
-  -- fzf_win is set after fzf#run below; the closure sees it via upvalue reference.
   local fzf_win
 
-  -- One reader job per TreeFiles call; kill any previous one so prev_win is fresh.
   if vim.g.ftree_job_id and vim.fn.jobwait({vim.g.ftree_job_id}, 0)[1] == -1 then
     vim.fn.jobstop(vim.g.ftree_job_id)
   end
@@ -430,9 +449,7 @@ local function tree_files()
               if vim.api.nvim_win_is_valid(prev_win) then
                 vim.api.nvim_set_current_win(prev_win)
               end
-              -- silent! suppresses the "press enter" LSP startup error prompt
               vim.cmd("silent! edit " .. vim.fn.fnameescape(path))
-              -- Return focus to fzf so the picker stays interactive
               if fzf_win and vim.api.nvim_win_is_valid(fzf_win) then
                 vim.api.nvim_set_current_win(fzf_win)
               end
@@ -450,24 +467,65 @@ local function tree_files()
   local change_bind = string.format(
     'change:transform:[[ -n "{q}" ]] && echo "enable-search+reload(%s {q})" || echo "disable-search+reload(%s)"',
     script, script)
-  -- Write path to FIFO; the reader job above opens it in the original window.
   local enter_bind = string.format(
     "enter:execute-silent(printf '%%s\\n' '{1}' > %s)+clear-query", fifo)
 
+  -- Mirror of fzf's constrain(): new_offset = clamp(prev, max(cy-ni+1,0), cy)
+  -- with cy = $FZF_POS-1 and ni = $FZF_LINES - 2 (areaLines excludes the border,
+  -- subtract promptLines=2). This only matches fzf when --scroll-off=0 is set.
+  local save_state_cmd = string.format(
+    "prev=$(sed -n '3p' %s 2>/dev/null); [ -z \"$prev\" ] && prev=0; " ..
+    "ni=$(( $FZF_LINES - 2 )); [ $ni -lt 1 ] && ni=1; " ..
+    "cy=$(( $FZF_POS - 1 )); " ..
+    "lo=$(( cy - ni + 1 < 0 ? 0 : cy - ni + 1 )); " ..
+    "if [ \"$prev\" -lt \"$lo\" ]; then no=$lo; " ..
+    "elif [ \"$prev\" -gt \"$cy\" ]; then no=$cy; " ..
+    "else no=$prev; fi; " ..
+    "printf '%%s\\n%%s\\n%%s\\n' {1} '{q}' \"$no\" > %s",
+    state_file, state_file)
+  -- transform is synchronous: fzf waits for it before handling the next event,
+  -- so an esc/abort cannot kill the save mid-write (execute-silent could).
+  local focus_bind = "focus:transform(" .. save_state_cmd .. "; printf nop)"
+
+  local opts = {
+    "--disabled",
+    "--delimiter", "\t",
+    "--with-nth", "2",
+    "--prompt", "Tree> ",
+    "--sync",
+    "--scroll-off=0",
+    "--bind", change_bind,
+    "--bind", left_bind,
+    "--bind", right_bind,
+    "--bind", enter_bind,
+    "--bind", focus_bind,
+  }
+  if saved_query ~= "" then
+    table.insert(opts, "--query")
+    table.insert(opts, saved_query)
+  end
+  if start_pos > 0 then
+    -- pos(N) places the cursor and fzf's constrain puts it at viewport bottom
+    -- (offset = max(0, N - ni)); offset-down × (saved_offset - co) then shifts
+    -- the viewport so the cursor lands on its original row.
+    local start_bind = string.format(
+      "start:pos(%d)+transform(" ..
+        "ni=$(( $FZF_LINES - 2 )); [ $ni -lt 1 ] && ni=1; " ..
+        "co=$(( $FZF_POS - $ni )); [ $co -lt 0 ] && co=0; " ..
+        "diff=$(( %d - co )); [ $diff -lt 0 ] && diff=0; " ..
+        "r=''; n=$diff; " ..
+        "while [ $n -gt 0 ]; do r=\"${r:+$r+}offset-down\"; n=$((n-1)); done; " ..
+        "printf %%s \"${r:-nop}\"" ..
+      ")",
+      start_pos, saved_offset)
+    table.insert(opts, "--bind")
+    table.insert(opts, start_bind)
+  end
+
   vim.fn["fzf#run"](vim.fn["fzf#wrap"]({
     source = script,
-    options = {
-      "--disabled",
-      "--delimiter", "\t",
-      "--with-nth", "2",
-      "--prompt", "Tree> ",
-      "--bind", change_bind,
-      "--bind", left_bind,
-      "--bind", right_bind,
-      "--bind", enter_bind,
-    }
+    options = opts,
   }))
-  -- fzf#run moves focus to the terminal window; capture it for the callback above.
   fzf_win = vim.api.nvim_get_current_win()
 end
 
