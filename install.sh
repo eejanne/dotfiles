@@ -55,6 +55,44 @@ if [ -z $(which ag) ]; then
 	brew install the_silver_searcher
 fi
 
+##########################
+# Install nvm + node + LSP servers
+##########################
+
+export NVM_DIR="$HOME/.nvm"
+echo "Installing/upgrading nvm to latest..."
+NVM_LATEST=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_LATEST}/install.sh" | bash
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+
+if [ -z $(which node) ]; then
+	echo "node not found. Installing latest LTS via nvm..."
+	nvm install --lts
+	nvm use --lts
+fi
+
+if [ -z $(which npm) ]; then
+	echo "npm not found after nvm/node install — something went wrong."
+else
+	# typescript@6: ts_ls (typescript-language-server) requires typescript < 7
+	npm_packages=(
+		"typescript@6"
+		"typescript-language-server"
+		"@tailwindcss/language-server"
+		"bash-language-server"
+		"cssmodules-language-server"
+		"pyright"
+		"vscode-langservers-extracted"
+	)
+	for pkg in "${npm_packages[@]}"; do
+		pkg_name="${pkg%%@[0-9]*}"
+		if [ -z "$(npm list -g --depth=0 2>/dev/null | grep "${pkg_name##*/}")" ]; then
+			echo "Installing $pkg..."
+			npm install -g "$pkg"
+		fi
+	done
+fi
+
 if [ -z $(which opencode) ]; then
 	echo "opencode not found. Installing opencode..."
 	curl -fsSL https://opencode.ai/v2/install | bash
