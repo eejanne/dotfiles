@@ -467,8 +467,13 @@ local function tree_files()
   local change_bind = string.format(
     'change:transform:[[ -n "{q}" ]] && echo "enable-search+reload(%s {q})" || echo "disable-search+reload(%s)"',
     script, script)
+  -- When a query is active the user is fuzzy-matching: close fzf after opening.
+  -- Otherwise (tree mode) just clear the query so they can keep browsing.
   local enter_bind = string.format(
-    "enter:execute-silent(printf '%%s\\n' '{1}' > %s)+clear-query", fifo)
+    "enter:transform:[[ -n \"{q}\" ]] " ..
+    "&& echo \"execute-silent(printf '%%s\\n' '{1}' > %s)+abort\" " ..
+    "|| echo \"execute-silent(printf '%%s\\n' '{1}' > %s)+clear-query\"",
+    fifo, fifo)
 
   -- Mirror of fzf's constrain(): new_offset = clamp(prev, max(cy-ni+1,0), cy)
   -- with cy = $FZF_POS-1 and ni = $FZF_LINES - 2 (areaLines excludes the border,
